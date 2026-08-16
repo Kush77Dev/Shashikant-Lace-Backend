@@ -8,7 +8,10 @@ const userSchema = new mongoose.Schema({
   phone: { type: String },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   avatar: { type: String },
-  is_google: { type: Number, default: 0 }
+  is_google: { type: Number, default: 0 },
+  is_verified: { type: Boolean, default: false },
+  otp_code: { type: String, default: null },
+  otp_expires: { type: Date, default: null }
 }, {
   timestamps: { createdAt: 'created_date', updatedAt: 'updated_date' }
 });

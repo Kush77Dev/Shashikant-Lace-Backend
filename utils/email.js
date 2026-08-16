@@ -147,6 +147,51 @@ export const sendOrderConfirmationEmail = async (order) => {
 };
 
 /**
+ * OTP Verification Email
+ */
+export const sendOtpEmail = async (to, otpCode, name = 'Valued Couturier') => {
+  try {
+    if (!to || !otpCode) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+        <div style="max-width: 620px; margin: 30px auto; background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; overflow: hidden; box-shadow: 0 10px 25px rgba(15,23,42,0.06);">
+          ${brandHeaderHtml}
+          <div style="padding: 44px 36px; text-align: center;">
+            <p style="color: #D97706; font-size: 11px; text-transform: uppercase; letter-spacing: 3px; font-weight: 600; margin: 0 0 10px 0;">VERIFICATION CODE</p>
+            <h2 style="font-family: Georgia, serif; font-size: 26px; color: #0F172A; margin: 0 0 16px 0; font-weight: 400;">Confirm your email address, ${name}.</h2>
+            <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 auto 24px auto; max-width: 460px;">
+              Please use the 6-digit verification code below to verify your email address and activate your account. This code is valid for 10 minutes.
+            </p>
+
+            <div style="background-color: #0F172A; color: #D97706; font-family: 'Courier New', monospace; font-size: 36px; font-weight: bold; letter-spacing: 12px; padding: 20px 30px; border-radius: 4px; display: inline-block; margin-bottom: 24px;">
+              ${otpCode}
+            </div>
+
+            <p style="font-size: 12px; color: #64748B; margin: 0;">If you did not request this verification code, please ignore this email.</p>
+          </div>
+          ${brandFooterHtml}
+        </div>
+      </body>
+      </html>
+    `;
+
+    await transporter.sendMail({
+      from: FROM_EMAIL,
+      to,
+      subject: `${otpCode} is your Shashikant Lace verification code`,
+      html,
+      attachments: getAttachments(),
+    });
+    console.log(`✅ Verification OTP email sent to ${to}`);
+  } catch (error) {
+    console.error('❌ Failed to send OTP email:', error.message);
+  }
+};
+
+/**
  * 2. Welcome Email
  */
 export const sendWelcomeEmail = async (user) => {
