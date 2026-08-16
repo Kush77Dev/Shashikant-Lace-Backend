@@ -44,9 +44,7 @@ export const register = async (req, res) => {
     }
 
     // Send verification OTP email
-    sendOtpEmail(lowerEmail, otpCode, fullName).catch((err) =>
-      console.error('OTP email error:', err.message)
-    );
+    await sendOtpEmail(lowerEmail, otpCode, fullName);
 
     res.status(200).json({
       message: 'Verification OTP sent to your email',
@@ -143,9 +141,7 @@ export const resendOtp = async (req, res) => {
     user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    sendOtpEmail(lowerEmail, otpCode, user.fullName).catch((err) =>
-      console.error('Resend OTP error:', err.message)
-    );
+    await sendOtpEmail(lowerEmail, otpCode, user.fullName);
 
     res.json({ message: 'A new 6-digit OTP code has been sent to your email.' });
   } catch (err) {

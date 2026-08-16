@@ -2,19 +2,24 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 
-// Transporter configuration using environment variables with console log fallback
+// Transporter configuration for Gmail with automatic credentials fallback
 const createTransporter = () => {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+  const user = process.env.SMTP_USER || 'shashikantlace@gmail.com';
+  const pass = (process.env.SMTP_PASS || 'oxrwzntiesdztuuj').replace(/\s+/g, '');
+
+  if (user && pass) {
     return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: Number(process.env.SMTP_PORT) === 465,
+      service: 'gmail',
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user,
+        pass,
       },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
   }
+
   return {
     sendMail: async (options) => {
       console.log('--- 📧 [EMAIL NOTIFICATION DEV LOG] ---');
@@ -46,26 +51,6 @@ const getAttachments = () => {
   }
   return [];
 };
-
-// Brand Header & Footer HTML Partial
-const brandHeaderHtml = `
-  <div style="background-color: #0F172A; text-align: center; padding: 32px 20px; border-bottom: 2px solid #D97706;">
-    <div style="margin-bottom: 10px;">
-      <img src="cid:shashikant_logo_white" alt="Shashikant Lace" style="height: 58px; max-width: 260px; width: auto; display: inline-block; border: none; outline: none;" />
-    </div>
-    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9px; color: #94A3B8; text-transform: uppercase; letter-spacing: 4px; margin-top: 4px;">
-      FINE FABRICS & HERITAGE TRIMMINGS
-    </div>
-  </div>
-`;
-
-const brandFooterHtml = `
-  <div style="background-color: #0F172A; color: #94A3B8; text-align: center; padding: 30px 20px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.8; border-top: 1px solid #1E293B;">
-    <p style="color: #F8FAFC; font-family: Georgia, serif; font-size: 14px; margin-bottom: 8px; letter-spacing: 1px;">SHASHIKANT LACE ATELIER</p>
-    <p style="margin: 0 0 10px 0;">Atelier No. 7, Heritage Lane, Mumbai, Maharashtra 400001 · India</p>
-    <p style="margin: 0; color: #64748B;">© ${new Date().getFullYear()} Shashikant Lace. All rights reserved.</p>
-  </div>
-`;
 
 /**
  * 1. Order Confirmation Email
@@ -133,18 +118,39 @@ export const sendOrderConfirmationEmail = async (order) => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to: customerEmail,
       subject: `Order Confirmation #${order.order_number} — Shashikant Lace`,
       html,
       attachments: getAttachments(),
     });
-    console.log(`✅ Order confirmation email sent to ${customerEmail}`);
+    console.log(`✅ Order confirmation email sent to ${customerEmail} (ID: ${info.messageId})`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send order email:', error.message);
   }
 };
+
+// Brand Header & Footer HTML Partial
+const brandHeaderHtml = `
+  <div style="background-color: #0F172A; text-align: center; padding: 32px 20px; border-bottom: 2px solid #D97706;">
+    <div style="margin-bottom: 10px;">
+      <img src="cid:shashikant_logo_white" alt="Shashikant Lace" style="height: 58px; max-width: 260px; width: auto; display: inline-block; border: none; outline: none;" />
+    </div>
+    <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9px; color: #94A3B8; text-transform: uppercase; letter-spacing: 4px; margin-top: 4px;">
+      FINE FABRICS & HERITAGE TRIMMINGS
+    </div>
+  </div>
+`;
+
+const brandFooterHtml = `
+  <div style="background-color: #0F172A; color: #94A3B8; text-align: center; padding: 30px 20px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.8; border-top: 1px solid #1E293B;">
+    <p style="color: #F8FAFC; font-family: Georgia, serif; font-size: 14px; margin-bottom: 8px; letter-spacing: 1px;">SHASHIKANT LACE ATELIER</p>
+    <p style="margin: 0 0 10px 0;">Atelier No. 7, Heritage Lane, Mumbai, Maharashtra 400001 · India</p>
+    <p style="margin: 0; color: #64748B;">© ${new Date().getFullYear()} Shashikant Lace. All rights reserved.</p>
+  </div>
+`;
 
 /**
  * OTP Verification Email
@@ -178,16 +184,18 @@ export const sendOtpEmail = async (to, otpCode, name = 'Valued Couturier') => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to,
       subject: `${otpCode} is your Shashikant Lace verification code`,
       html,
       attachments: getAttachments(),
     });
-    console.log(`✅ Verification OTP email sent to ${to}`);
+    console.log(`✅ Verification OTP email sent to ${to} (ID: ${info.messageId})`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error.message);
+    throw error;
   }
 };
 
@@ -220,14 +228,15 @@ export const sendWelcomeEmail = async (user) => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to: userEmail,
       subject: `Welcome to Shashikant Lace, ${userName}`,
       html,
       attachments: getAttachments(),
     });
-    console.log(`✅ Welcome email sent to ${userEmail}`);
+    console.log(`✅ Welcome email sent to ${userEmail} (ID: ${info.messageId})`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send welcome email:', error.message);
   }
@@ -275,14 +284,15 @@ export const sendAbandonedCartEmail = async ({ to, name, cartItems }) => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to,
       subject: `Your curated weaves are waiting — Shashikant Lace`,
       html,
       attachments: getAttachments(),
     });
-    console.log(`✅ Abandoned cart email sent to ${to}`);
+    console.log(`✅ Abandoned cart email sent to ${to} (ID: ${info.messageId})`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send abandoned cart email:', error.message);
   }
@@ -318,7 +328,7 @@ export const sendBackInStockEmail = async ({ to, name, product }) => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to,
       subject: `Back in Stock: ${product.name} — Shashikant Lace`,
@@ -326,6 +336,7 @@ export const sendBackInStockEmail = async ({ to, name, product }) => {
       attachments: getAttachments(),
     });
     console.log(`✅ Back in stock email sent to ${to} for ${product.name}`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send back in stock email:', error.message);
   }
@@ -359,7 +370,7 @@ export const sendReviewRequestEmail = async (order) => {
       </html>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to: customerEmail,
       subject: `How are you enjoying your weaves? — Shashikant Lace`,
@@ -367,6 +378,7 @@ export const sendReviewRequestEmail = async (order) => {
       attachments: getAttachments(),
     });
     console.log(`✅ Review request email sent to ${customerEmail}`);
+    return info;
   } catch (error) {
     console.error('❌ Failed to send review request email:', error.message);
   }
