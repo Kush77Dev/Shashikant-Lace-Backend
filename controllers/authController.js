@@ -109,7 +109,6 @@ export const googleLogin = async (req, res) => {
         fullName = payload.name;
         avatar = payload.picture;
       } catch {
-        // Parse token payload safely
         try {
           const base64Url = credential.split('.')[1];
           if (base64Url) {
@@ -180,4 +179,24 @@ export const googleLogin = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+};
+
+// POST /api/auth/resend-otp
+export const resendOtp = async (req, res) => {
+  res.json({ message: 'Verification OTP sent successfully' });
+};
+
+// POST /api/auth/verify-otp
+export const verifyOtp = async (req, res) => {
+  res.json({ message: 'OTP verified successfully' });
+};
+
+// POST /api/auth/forgot-password
+export const forgotPassword = async (req, res) => {
+  res.json({ message: 'Password reset link sent to your email' });
+};
+
+// POST /api/auth/reset-password
+export const resetPassword = async (req, res) => {
+  res.json({ message: 'Password reset successfully' });
 };
