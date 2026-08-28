@@ -1,114 +1,49 @@
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
+import { PNG } from 'pngjs';
 
+/**
+ * Generates assets/logo_white.png — a pure-white, alpha-preserved version
+ * of assets/logo.png, for use on dark backgrounds (email header, invoice
+ * header, dark-mode navbar).
+ *
+ * Uses `pngjs` for decoding/encoding so PNG scanline filtering (Sub/Up/
+ * Average/Paeth) is handled correctly. An earlier hand-rolled version of
+ * this script edited raw (still-filtered) IDAT bytes directly, which
+ * corrupted almost every pixel and produced visible RGB speckling in the
+ * output logo.
+ */
 function createWhiteLogo() {
   const inputPath = path.join(process.cwd(), 'assets', 'logo.png');
   const outputPath = path.join(process.cwd(), 'assets', 'logo_white.png');
 
-  if (!fs.existsSync(inputPath)) return;
-
-  const buffer = fs.readFileSync(inputPath);
-  
-  // PNG signature check
-  if (buffer.readUInt32BE(0) !== 0x89504e47) {
-    console.error('Not a valid PNG file');
+  if (!fs.existsSync(inputPath)) {
+    console.error('Source logo not found at', inputPath);
     return;
   }
 
-  let offset = 8;
-  let width = 0, height = 0, bitDepth = 0, colorType = 0;
-  const idatChunks = [];
+  const src = fs.readFileSync(inputPath);
+  const png = PNG.sync.read(src);
 
-  while (offset < buffer.length) {
-    const length = buffer.readUInt32BE(offset);
-    const type = buffer.toString('ascii', offset + 4, offset + 8);
-    
-    if (type === 'IHDR') {
-      width = buffer.readUInt32BE(offset + 8);
-      height = buffer.readUInt32BE(offset + 12);
-      bitDepth = buffer[offset + 16];
-      colorType = buffer[offset + 17];
-    } else if (type === 'IDAT') {
-      idatChunks.push(buffer.subarray(offset + 8, offset + 8 + length));
-    }
-    offset += 12 + length;
-  }
+  const { width, height, data } = png; // data is a fully decoded RGBA buffer
 
-  if (colorType !== 6 || bitDepth !== 8) {
-    // Fallback: copy original if not standard 8-bit RGBA
-    fs.copyFileSync(inputPath, outputPath);
-    console.log('Copied original logo as fallback.');
-    return;
-  }
-
-  const compressedData = Buffer.concat(idatChunks);
-  const decompressed = zlib.inflateSync(compressedData);
-
-  const bytesPerPixel = 4;
-  const scanlineLength = 1 + width * bytesPerPixel;
-  
-  for (let y = 0; y < height; y++) {
-    const rowStart = y * scanlineLength;
-    for (let x = 0; x < width; x++) {
-      const px = rowStart + 1 + x * bytesPerPixel;
-      const alpha = decompressed[px + 3];
-      if (alpha > 0) {
-        // Change color to pure white while preserving alpha
-        decompressed[px] = 255;     // R
-        decompressed[px + 1] = 255; // G
-        decompressed[px + 2] = 255; // B
-      }
+  for (let i = 0; i < width * height; i++) {
+    const idx = i * 4;
+    const alpha = data[idx + 3];
+    if (alpha > 0) {
+      data[idx] = 255;     // R
+      data[idx + 1] = 255; // G
+      data[idx + 2] = 255; // B
+      // alpha untouched — preserves the original silhouette/anti-aliasing
     }
   }
 
-  const recompressed = zlib.deflateSync(decompressed);
+  const outPng = new PNG({ width, height });
+  data.copy(outPng.data);
 
-  // Helper CRC32
-  const crcTable = [];
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) {
-      c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-    }
-    crcTable[n] = c;
-  }
-  function calcCRC(buf) {
-    let crc = 0xffffffff;
-    for (let i = 0; i < buf.length; i++) {
-      crc = crcTable[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
-    }
-    return (crc ^ 0xffffffff) >>> 0;
-  }
-
-  function makeChunk(typeStr, dataBuf) {
-    const typeBuf = Buffer.from(typeStr, 'ascii');
-    const lenBuf = Buffer.alloc(4);
-    lenBuf.writeUInt32BE(dataBuf.length, 0);
-    const combined = Buffer.concat([typeBuf, dataBuf]);
-    const crcVal = calcCRC(combined);
-    const crcBuf = Buffer.alloc(4);
-    crcBuf.writeUInt32BE(crcVal, 0);
-    return Buffer.concat([lenBuf, combined, crcBuf]);
-  }
-
-  // Build new PNG
-  const pngSig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  const ihdrData = Buffer.alloc(13);
-  ihdrData.writeUInt32BE(width, 0);
-  ihdrData.writeUInt32BE(height, 4);
-  ihdrData[8] = bitDepth;
-  ihdrData[9] = colorType;
-  ihdrData[10] = 0;
-  ihdrData[11] = 0;
-  ihdrData[12] = 0;
-  const ihdrChunk = makeChunk('IHDR', ihdrData);
-  const idatChunk = makeChunk('IDAT', recompressed);
-  const iendChunk = makeChunk('IEND', Buffer.alloc(0));
-
-  const newPng = Buffer.concat([pngSig, ihdrChunk, idatChunk, iendChunk]);
-  fs.writeFileSync(outputPath, newPng);
-  console.log(`✅ Created white transparent logo at ${outputPath} (${newPng.length} bytes)`);
+  const outBuffer = PNG.sync.write(outPng);
+  fs.writeFileSync(outputPath, outBuffer);
+  console.log(`✅ Created white transparent logo at ${outputPath} (${outBuffer.length} bytes)`);
 }
 
 createWhiteLogo();

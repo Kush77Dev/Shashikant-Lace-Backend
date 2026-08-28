@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
+import { generateInvoiceBuffer } from './invoice.js';
 
 // Transporter configuration for Gmail with automatic credentials fallback
 const createTransporter = () => {
@@ -82,7 +83,7 @@ export const sendOrderConfirmationEmail = async (order) => {
           <div style="padding: 40px 32px;">
             <p style="color: #D97706; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; margin: 0 0 6px 0;">ORDER CONFIRMED</p>
             <h2 style="font-family: Georgia, serif; font-size: 26px; color: #0F172A; margin: 0 0 16px 0; font-weight: 400;">Thank you for your order, ${customerName}.</h2>
-            <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">Your order <strong style="color: #0F172A;">#${order.order_number}</strong> has been received and is being prepared with high craftsmanship by our atelier master weavers.</p>
+            <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">Your order <strong style="color: #0F172A;">#${order.order_number}</strong> has been received and is being prepared with high craftsmanship by our atelier master weavers. A copy of your invoice is attached to this email as a PDF.</p>
 
             <div style="background-color: #FAF9F6; border: 1px solid #E2E8F0; padding: 18px 24px; border-radius: 4px; margin-bottom: 28px;">
               <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #334155;">
@@ -118,12 +119,27 @@ export const sendOrderConfirmationEmail = async (order) => {
       </html>
     `;
 
+    // Attach the PDF invoice alongside the CID logo. If PDF generation
+    // fails for any reason, still send the confirmation email without it
+    // rather than blocking the whole notification.
+    let invoiceAttachment = [];
+    try {
+      const invoiceBuffer = await generateInvoiceBuffer(order);
+      invoiceAttachment = [{
+        filename: `Invoice-${order.order_number}.pdf`,
+        content: invoiceBuffer,
+        contentType: 'application/pdf',
+      }];
+    } catch (invoiceErr) {
+      console.error('❌ Failed to generate invoice PDF for email:', invoiceErr.message);
+    }
+
     const info = await transporter.sendMail({
       from: FROM_EMAIL,
       to: customerEmail,
       subject: `Order Confirmation #${order.order_number} — Shashikant Lace`,
       html,
-      attachments: getAttachments(),
+      attachments: [...getAttachments(), ...invoiceAttachment],
     });
     console.log(`✅ Order confirmation email sent to ${customerEmail} (ID: ${info.messageId})`);
     return info;
